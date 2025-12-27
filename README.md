@@ -3,6 +3,8 @@
 An unofficial native iOS MeshCore client.   
 Disclaimer: Built entirely with AI.
 
+This app is not published on the App Store. Sideloading is required.
+
 ## Documentation
 
 -   **[Architecture](docs/Architecture.md)**: Deep dive into the three-tier architecture, concurrency model, and persistence layer.
