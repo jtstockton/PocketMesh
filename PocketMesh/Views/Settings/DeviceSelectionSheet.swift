@@ -1,5 +1,8 @@
+import os
 import SwiftUI
 import PocketMeshServices
+
+private let logger = Logger(subsystem: "com.pocketmesh", category: "DeviceSelectionSheet")
 
 /// Represents a device that can be selected for connection
 private enum SelectableDevice: Identifiable, Equatable {
@@ -124,7 +127,7 @@ struct DeviceSelectionSheet: View {
                 return
             }
         } catch {
-            print("DeviceSelectionSheet: Failed to load devices: \(error)")
+            logger.error("Failed to load devices: \(error)")
         }
 
         // Fall back to ASK accessories when database is empty
