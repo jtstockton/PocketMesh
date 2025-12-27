@@ -20,33 +20,39 @@
 	<string>1</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>PocketMesh uses Bluetooth to connect to MeshCore radio devices for mesh messaging.</string>
-	<key>NSAccessorySetupKitSupports</key>
+	<key>NSAccessorySetupBluetoothNames</key>
 	<array>
-		<string>Bluetooth</string>
+		<string>MeshCore-</string>
 	</array>
 	<key>NSAccessorySetupBluetoothServices</key>
 	<array>
 		<string>6E400001-B5A3-F393-E0A9-E50E24DCCA9E</string>
 	</array>
-	<key>NSAccessorySetupBluetoothNames</key>
+	<key>NSAccessorySetupKitSupports</key>
 	<array>
-		<string>MeshCore-</string>
+		<string>Bluetooth</string>
 	</array>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>PocketMesh uses your location to share coordinates with mesh contacts.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>PocketMesh uses Bluetooth to connect to MeshCore radio devices for mesh messaging.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_datascout-sync._tcp</string>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>PocketMesh needs camera access to scan channel QR codes.</string>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>bluetooth-central</string>
-	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>PocketMesh uses the local network to enable database debugging with DataScout.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>PocketMesh uses your location to share coordinates with mesh contacts.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UIRequiredDeviceCapabilities</key>
@@ -66,11 +72,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>NSBonjourServices</key>
-	<array>
-		<string>_datascout-sync._tcp</string>
-	</array>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>PocketMesh uses the local network to enable database debugging with DataScout.</string>
 </dict>
 </plist>

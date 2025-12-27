@@ -31,6 +31,7 @@ targets:
       - path: PocketMesh
         excludes:
           - "**/*.md"
+      - path: AppIcon.icon
     dependencies:
       - package: PocketMeshServices
       - package: DataScoutCompanion
