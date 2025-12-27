@@ -5,7 +5,6 @@ import PocketMeshServices
 struct DangerZoneSection: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
-    @State private var showingDisconnectAlert = false
     @State private var showingForgetAlert = false
     @State private var showingResetAlert = false
     @State private var isResetting = false
@@ -13,12 +12,6 @@ struct DangerZoneSection: View {
 
     var body: some View {
         Section {
-            Button(role: .destructive) {
-                showingDisconnectAlert = true
-            } label: {
-                Label("Disconnect Device", systemImage: "eject")
-            }
-
             Button(role: .destructive) {
                 showingForgetAlert = true
             } label: {
@@ -42,17 +35,6 @@ struct DangerZoneSection: View {
             Text("Danger Zone")
         } footer: {
             Text("Factory reset erases all contacts, messages, and settings on the device.")
-        }
-        .alert("Disconnect Device", isPresented: $showingDisconnectAlert) {
-            Button("Cancel", role: .cancel) { }
-            Button("Disconnect", role: .destructive) {
-                Task {
-                    await appState.disconnect()
-                    dismiss()
-                }
-            }
-        } message: {
-            Text("Are you sure you want to disconnect from this device?")
         }
         .alert("Forget Device", isPresented: $showingForgetAlert) {
             Button("Cancel", role: .cancel) { }

@@ -145,11 +145,6 @@ struct AboutView: View {
                 }
             }
 
-            Section {
-                Link("Privacy Policy", destination: URL(string: "https://meshcore.co.uk/privacy")!)
-                Link("Terms of Service", destination: URL(string: "https://meshcore.co.uk/terms")!)
-                Link("Open Source Licenses", destination: URL(string: "https://meshcore.co.uk/licenses")!)
-            }
         }
         .navigationTitle("About")
     }

@@ -17,7 +17,8 @@ struct TelemetrySettingsSection: View {
             Toggle(isOn: telemetryEnabledBinding) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Allow Telemetry Requests")
-                    Text("Share basic device telemetry with other nodes")
+                    Text("Required for other users to manually")
+                    Text("trace a path to you. Shares battery level.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -66,7 +67,7 @@ struct TelemetrySettingsSection: View {
         } header: {
             Text("Telemetry")
         } footer: {
-            Text("Telemetry data helps other nodes monitor mesh health.")
+            Text("When enabled, other nodes can request your device's telemetry data.")
         }
         .errorAlert($showError)
         .retryAlert(retryAlert)
