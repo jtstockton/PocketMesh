@@ -303,6 +303,7 @@ public actor SyncCoordinator {
                 replyToID: nil,
                 roundTripTime: nil,
                 heardRepeats: 0,
+                repeaterInfoJSON: nil,
                 retryAttempt: 0,
                 maxRetryAttempts: 0
             )
@@ -367,6 +368,7 @@ public actor SyncCoordinator {
                 replyToID: nil,
                 roundTripTime: nil,
                 heardRepeats: 0,
+                repeaterInfoJSON: nil,
                 retryAttempt: 0,
                 maxRetryAttempts: 0
             )

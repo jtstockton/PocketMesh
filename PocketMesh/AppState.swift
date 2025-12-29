@@ -251,6 +251,14 @@ public final class AppState {
                 self?.messageEventBroadcaster.handleMessageFailed(messageID: messageID)
             }
         }
+        
+        // Wire up heard repeats handler
+        await services.messageService.setHeardRepeatsHandler { [weak self] messageID, heardRepeats in
+            await MainActor.run {
+                // Trigger message status update (use 0 as ackCode since it's not relevant for repeat updates)
+                self?.messageEventBroadcaster.handleAcknowledgement(ackCode: 0)
+            }
+        }
 
         // Configure badge count callback
         services.notificationService.getBadgeCount = { [dataStore = services.dataStore] in

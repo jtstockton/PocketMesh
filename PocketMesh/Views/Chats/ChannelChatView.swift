@@ -172,7 +172,7 @@ struct ChannelChatView: View {
                 deviceName: appState.connectedDevice?.nodeName ?? "Me",
                 configuration: .channel(
                     isPublic: channel.isPublicChannel || channel.name.hasPrefix("#"),
-                    contacts: viewModel.conversations
+                    contacts: viewModel.allContacts
                 ),
                 showTimestamp: ChatViewModel.shouldShowTimestamp(at: index, in: viewModel.messages),
                 onRetry: message.hasFailed ? { retryMessage(message) } : nil,

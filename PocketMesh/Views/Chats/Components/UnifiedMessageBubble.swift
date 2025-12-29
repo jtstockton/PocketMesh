@@ -1,16 +1,26 @@
 import SwiftUI
 import PocketMeshServices
 
+/// Information about a single repeater that relayed a message
+struct RepeaterInfo: Identifiable, Codable, Sendable {
+    var id: String { prefix }
+    let prefix: String
+    let snr: Double?
+    let heardAt: Date
+}
+
 /// Configuration for message bubble appearance and behavior
 struct MessageBubbleConfiguration: Sendable {
     let accentColor: Color
     let showSenderName: Bool
     let senderNameResolver: (@Sendable (MessageDTO) -> String)?
+    let contacts: [ContactDTO]
 
     static let directMessage = MessageBubbleConfiguration(
         accentColor: .blue,
         showSenderName: false,
-        senderNameResolver: nil
+        senderNameResolver: nil,
+        contacts: []
     )
 
     static func channel(isPublic: Bool, contacts: [ContactDTO]) -> MessageBubbleConfiguration {
@@ -19,7 +29,8 @@ struct MessageBubbleConfiguration: Sendable {
             showSenderName: true,
             senderNameResolver: { message in
                 resolveSenderName(for: message, contacts: contacts)
-            }
+            },
+            contacts: contacts
         )
     }
 
@@ -61,6 +72,8 @@ struct UnifiedMessageBubble: View {
     let onRetry: (() -> Void)?
     let onReply: ((String) -> Void)?
     let onDelete: (() -> Void)?
+    
+    @State private var showingRepeaterDetails = false
 
     init(
         message: MessageDTO,
@@ -113,6 +126,9 @@ struct UnifiedMessageBubble: View {
                         .clipShape(.rect(cornerRadius: 16))
                         .contextMenu {
                             contextMenuContent
+                        }
+                        .sheet(isPresented: $showingRepeaterDetails) {
+                            repeaterDetailsSheet
                         }
 
                     // Status row for outgoing messages
@@ -181,6 +197,15 @@ struct UnifiedMessageBubble: View {
             if let rtt = message.roundTripTime {
                 Text("Round trip: \(rtt)ms")
             }
+            
+            // Show repeater details button if available
+            if shouldShowRepeaterDetails {
+                Button {
+                    showingRepeaterDetails = true
+                } label: {
+                    Label("Repeater Details", systemImage: "antenna.radiowaves.left.and.right")
+                }
+            }
         }
 
         // Incoming message details in submenu (more fields)
@@ -242,8 +267,222 @@ struct UnifiedMessageBubble: View {
             Text(statusText)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+            
+            // Show heard repeats for channel messages (tap message to see details)
+            if shouldShowHeardRepeats {
+                Text("(\(message.heardRepeats) repeat\(message.heardRepeats == 1 ? "" : "s"))")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.trailing, 4)
+    }
+    
+    /// Determines if heard repeats count should be displayed
+    private var shouldShowHeardRepeats: Bool {
+        message.isOutgoing &&        // Only outgoing messages
+        message.isChannelMessage &&  // Only channel messages (not DMs)
+        message.heardRepeats > 0     // Only if we heard repeats (including 0 to show "Sent (0 repeats)")
+    }
+    
+    /// Determines if repeater details button should be shown in context menu
+    private var shouldShowRepeaterDetails: Bool {
+        message.isOutgoing &&        // Only outgoing messages
+        message.isChannelMessage &&  // Only channel messages
+        message.heardRepeats > 0     // Only if we heard repeats
+    }
+
+    // MARK: - Repeater Details Sheet
+    
+    @ViewBuilder
+    private var repeaterDetailsSheet: some View {
+        NavigationStack {
+            Group {
+                if let repeaters = parseRepeaters(), !repeaters.isEmpty {
+                    List {
+                        Section {
+                            HStack {
+                                Text("Total Repeats Heard")
+                                Spacer()
+                                Text("\(message.heardRepeats)")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        
+                        Section("Repeaters") {
+                            ForEach(repeaters) { repeater in
+                                repeaterRow(for: repeater)
+                            }
+                        }
+                    }
+                } else {
+                    ContentUnavailableView {
+                        Label("Repeater Details", systemImage: "antenna.radiowaves.left.and.right")
+                    } description: {
+                        VStack(spacing: 12) {
+                            Text("This message was heard being repeated \(message.heardRepeats) time\(message.heardRepeats == 1 ? "" : "s") by the mesh network.")
+                            Text("Detailed repeater information is not yet available.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Repeater Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        showingRepeaterDetails = false
+                    }
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func repeaterRow(for repeater: RepeaterInfo) -> some View {
+        let contactName = findContactName(for: repeater.prefix)
+        
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    if let name = contactName {
+                        Text(name)
+                            .font(.headline)
+                        Text("Node \(repeater.prefix)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Node \(repeater.prefix)")
+                            .font(.headline)
+                    }
+                }
+                Spacer()
+                if let snr = repeater.snr {
+                    let (quality, color) = signalQuality(snr: snr)
+                    Text(quality)
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(color.opacity(0.2))
+                        .foregroundStyle(color)
+                        .clipShape(.capsule)
+                }
+            }
+            
+            HStack {
+                Label {
+                    Text(repeater.heardAt, style: .relative)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } icon: {
+                    Image(systemName: "clock")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                if let snr = repeater.snr {
+                    Spacer()
+                    Label {
+                        Text("\(snr.formatted(.number.precision(.fractionLength(1)))) dB")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } icon: {
+                        Image(systemName: "waveform")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+    
+    /// Find contact name by matching the hex prefix (typically 1 byte = 2 hex chars)
+    /// Only searches repeater-type contacts for efficiency and correctness
+    private func findContactName(for hexPrefix: String) -> String? {
+        // Normalize hex string (uppercase, remove spaces)
+        let normalizedHex = hexPrefix.uppercased().replacingOccurrences(of: " ", with: "")
+        
+        // Must be valid hex (even number of chars, at least 2)
+        guard normalizedHex.count >= 2, normalizedHex.count % 2 == 0 else { 
+            print("⚠️ Invalid hex prefix: \(hexPrefix)")
+            return nil 
+        }
+        
+        // Convert hex prefix string to Data
+        var prefixData = Data()
+        var index = normalizedHex.startIndex
+        while index < normalizedHex.endIndex {
+            let nextIndex = normalizedHex.index(index, offsetBy: 2)
+            let hexByte = String(normalizedHex[index..<nextIndex])
+            if let byte = UInt8(hexByte, radix: 16) {
+                prefixData.append(byte)
+            }
+            index = nextIndex
+        }
+        
+        guard !prefixData.isEmpty else { 
+            print("⚠️ Empty prefix data from: \(hexPrefix)")
+            return nil 
+        }
+        
+        // Filter to only repeater-type contacts for efficiency and correctness
+        let repeaters = configuration.contacts.filter { $0.type == .repeater }
+        
+        print("🔍 Looking for repeater matching prefix: \(prefixData.map { String(format: "%02X", $0) }.joined()) (\(prefixData.count) byte(s))")
+        print("📋 Searching through \(repeaters.count) repeater(s) (out of \(configuration.contacts.count) total contacts)")
+        
+        // Try to match against repeaters only
+        for repeater in repeaters {
+            let repeaterPrefix = repeater.publicKey.prefix(prefixData.count)
+            let repeaterPrefixHex = repeaterPrefix.map { String(format: "%02X", $0) }.joined()
+            let prefixHex = prefixData.map { String(format: "%02X", $0) }.joined()
+            
+            // Check if repeater's public key starts with this prefix
+            if repeater.publicKey.count >= prefixData.count &&
+               repeaterPrefix == prefixData {
+                print("   ✅ MATCH! \(repeater.displayName): \(repeaterPrefixHex) matches \(prefixHex)")
+                return repeater.displayName
+            } else {
+                print("   ❌ \(repeater.displayName): \(repeaterPrefixHex) != \(prefixHex)")
+            }
+        }
+        
+        print("   ❌ No repeater found matching prefix: \(prefixData.map { String(format: "%02X", $0) }.joined())")
+        return nil
+    }
+    
+    private func signalQuality(snr: Double) -> (String, Color) {
+        switch snr {
+        case 10...:
+            return ("Excellent", .green)
+        case 5..<10:
+            return ("Good", .blue)
+        case 0..<5:
+            return ("Fair", .orange)
+        case -10..<0:
+            return ("Poor", .orange)
+        default:
+            return ("Very Poor", .red)
+        }
+    }
+    
+    private func parseRepeaters() -> [RepeaterInfo]? {
+        guard let jsonString = message.repeaterInfoJSON,
+              let jsonData = jsonString.data(using: .utf8) else {
+            return nil
+        }
+        
+        do {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode([RepeaterInfo].self, from: jsonData)
+        } catch {
+            print("Failed to decode repeater info: \(error)")
+            return nil
+        }
     }
 
     private var statusText: String {
@@ -440,3 +679,159 @@ struct UnifiedMessageBubble: View {
         configuration: .channel(isPublic: false, contacts: [])
     )
 }
+#Preview("Channel - Outgoing with 2 Repeats") {
+    let message = Message(
+        deviceID: UUID(),
+        channelIndex: 0,
+        text: "Hey that's good news!",
+        directionRawValue: MessageDirection.outgoing.rawValue,
+        statusRawValue: MessageStatus.sent.rawValue,
+        heardRepeats: 2
+    )
+    return UnifiedMessageBubble(
+        message: MessageDTO(from: message),
+        contactName: "Public Channel",
+        contactNodeName: "Public Channel",
+        deviceName: "My Device",
+        configuration: .channel(isPublic: true, contacts: [])
+    )
+    .padding()
+}
+
+#Preview("Channel - Outgoing with 5 Repeats") {
+    let message = Message(
+        deviceID: UUID(),
+        channelIndex: 0,
+        text: "Message with many repeaters!",
+        directionRawValue: MessageDirection.outgoing.rawValue,
+        statusRawValue: MessageStatus.sent.rawValue,
+        heardRepeats: 5
+    )
+    return UnifiedMessageBubble(
+        message: MessageDTO(from: message),
+        contactName: "Public Channel",
+        contactNodeName: "Public Channel",
+        deviceName: "My Device",
+        configuration: .channel(isPublic: true, contacts: [])
+    )
+    .padding()
+}
+
+#Preview("Channel - Outgoing with 0 Repeats") {
+    let message = Message(
+        deviceID: UUID(),
+        channelIndex: 0,
+        text: "Just sent, no repeats heard yet",
+        directionRawValue: MessageDirection.outgoing.rawValue,
+        statusRawValue: MessageStatus.sent.rawValue,
+        heardRepeats: 0
+    )
+    return UnifiedMessageBubble(
+        message: MessageDTO(from: message),
+        contactName: "Public Channel",
+        contactNodeName: "Public Channel",
+        deviceName: "My Device",
+        configuration: .channel(isPublic: true, contacts: [])
+    )
+    .padding()
+}
+
+#Preview("Direct - Outgoing with Repeats (Should NOT show)") {
+    let message = Message(
+        deviceID: UUID(),
+        contactID: UUID(),
+        text: "Direct message with repeats (won't show count)",
+        directionRawValue: MessageDirection.outgoing.rawValue,
+        statusRawValue: MessageStatus.delivered.rawValue,
+        heardRepeats: 3
+    )
+    return UnifiedMessageBubble(
+        message: MessageDTO(from: message),
+        contactName: "Alice",
+        contactNodeName: "Alice",
+        deviceName: "My Device",
+        configuration: .directMessage
+    )
+    .padding()
+}
+
+#Preview("Channel - With Repeater Details") {
+    // Example: Message went through 2 repeaters: 56 (JT repeater) and E0
+    let jsonString = """
+    [
+        {"prefix":"56","snr":12.5,"heardAt":"2024-12-28T10:30:00Z"},
+        {"prefix":"E0","snr":-4.8,"heardAt":"2024-12-28T10:30:01Z"}
+    ]
+    """
+    
+    let message = Message(
+        deviceID: UUID(),
+        channelIndex: 0,
+        text: "Message with detailed repeater info! Long press to see details.",
+        directionRawValue: MessageDirection.outgoing.rawValue,
+        statusRawValue: MessageStatus.sent.rawValue,
+        heardRepeats: 2,
+        repeaterInfoJSON: jsonString
+    )
+    return UnifiedMessageBubble(
+        message: MessageDTO(from: message),
+        contactName: "Public Channel",
+        contactNodeName: "Public Channel",
+        deviceName: "My Device",
+        configuration: .channel(isPublic: true, contacts: [])
+    )
+    .padding()
+}
+
+#Preview("Channel - With Named Repeaters") {
+    // Create mock contacts that match the repeater prefixes
+    let deviceID = UUID()
+    
+    // JT repeater with public key starting with 0x56
+    let jtRepeater = Contact(
+        deviceID: deviceID,
+        publicKey: Data([0x56, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+        name: "JT Repeater",
+        typeRawValue: 1 // Repeater type
+    )
+    
+    // Mountain repeater with public key starting with 0xE0
+    let mountainRepeater = Contact(
+        deviceID: deviceID,
+        publicKey: Data([0xE0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
+        name: "Mountain Repeater",
+        typeRawValue: 1
+    )
+    
+    let contacts = [
+        ContactDTO(from: jtRepeater),
+        ContactDTO(from: mountainRepeater)
+    ]
+    
+    let jsonString = """
+    [
+        {"prefix":"56","snr":12.5,"heardAt":"2024-12-28T10:30:00Z"},
+        {"prefix":"E0","snr":-4.8,"heardAt":"2024-12-28T10:30:01Z"}
+    ]
+    """
+    
+    let message = Message(
+        deviceID: deviceID,
+        channelIndex: 0,
+        text: "This message shows named repeaters! Long press to see 'JT Repeater' and 'Mountain Repeater'.",
+        directionRawValue: MessageDirection.outgoing.rawValue,
+        statusRawValue: MessageStatus.sent.rawValue,
+        heardRepeats: 2,
+        repeaterInfoJSON: jsonString
+    )
+    
+    return UnifiedMessageBubble(
+        message: MessageDTO(from: message),
+        contactName: "Public Channel",
+        contactNodeName: "Public Channel",
+        deviceName: "My Device",
+        configuration: .channel(isPublic: true, contacts: contacts)
+    )
+    .padding()
+}
+

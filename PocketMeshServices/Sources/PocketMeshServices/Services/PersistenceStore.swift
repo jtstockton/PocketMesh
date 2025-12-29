@@ -696,8 +696,8 @@ public actor PersistenceStore: PersistenceStoreProtocol {
         }
     }
 
-    /// Updates the heard repeats count for a message
-    public func updateMessageHeardRepeats(id: UUID, heardRepeats: Int) throws {
+    /// Updates the heard repeats count and repeater info for a message
+    public func updateMessageHeardRepeats(id: UUID, heardRepeats: Int, repeaterInfoJSON: String? = nil) async throws {
         let targetID = id
         let predicate = #Predicate<Message> { message in
             message.id == targetID
@@ -707,6 +707,9 @@ public actor PersistenceStore: PersistenceStoreProtocol {
 
         if let message = try modelContext.fetch(descriptor).first {
             message.heardRepeats = heardRepeats
+            if let json = repeaterInfoJSON {
+                message.repeaterInfoJSON = json
+            }
             try modelContext.save()
         }
     }

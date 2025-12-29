@@ -279,6 +279,7 @@ public enum MockDataProvider {
                     replyToID: nil,
                     roundTripTime: 2500,  // 2.5 seconds
                     heardRepeats: 1,
+                    repeaterInfoJSON: nil,
                     retryAttempt: 0,
                     maxRetryAttempts: 3
                 ),
@@ -304,6 +305,7 @@ public enum MockDataProvider {
                     replyToID: nil,
                     roundTripTime: nil,
                     heardRepeats: 0,
+                    repeaterInfoJSON: nil,
                     retryAttempt: 0,
                     maxRetryAttempts: 0
                 ),
@@ -329,6 +331,7 @@ public enum MockDataProvider {
                     replyToID: nil,
                     roundTripTime: nil,  // Still waiting for ACK
                     heardRepeats: 0,
+                    repeaterInfoJSON: nil,
                     retryAttempt: 0,
                     maxRetryAttempts: 3
                 ),
@@ -354,6 +357,7 @@ public enum MockDataProvider {
                     replyToID: nil,
                     roundTripTime: nil,
                     heardRepeats: 0,
+                    repeaterInfoJSON: nil,
                     retryAttempt: 0,
                     maxRetryAttempts: 0
                 ),
@@ -379,6 +383,7 @@ public enum MockDataProvider {
                     replyToID: nil,
                     roundTripTime: nil,
                     heardRepeats: 0,
+                    repeaterInfoJSON: nil,
                     retryAttempt: 0,
                     maxRetryAttempts: 0
                 ),
@@ -404,6 +409,7 @@ public enum MockDataProvider {
                     replyToID: nil,
                     roundTripTime: nil,
                     heardRepeats: 0,
+                    repeaterInfoJSON: nil,
                     retryAttempt: 0,
                     maxRetryAttempts: 0
                 )
@@ -433,6 +439,7 @@ public enum MockDataProvider {
                     replyToID: nil,
                     roundTripTime: 850,  // Fast, direct connection
                     heardRepeats: 0,
+                    repeaterInfoJSON: nil,
                     retryAttempt: 0,
                     maxRetryAttempts: 3
                 ),
@@ -458,6 +465,7 @@ public enum MockDataProvider {
                     replyToID: nil,
                     roundTripTime: nil,
                     heardRepeats: 0,
+                    repeaterInfoJSON: nil,
                     retryAttempt: 3,  // Max retries reached
                     maxRetryAttempts: 3
                 ),
@@ -483,6 +491,7 @@ public enum MockDataProvider {
                     replyToID: nil,
                     roundTripTime: nil,
                     heardRepeats: 0,
+                    repeaterInfoJSON: nil,
                     retryAttempt: 1,  // First retry
                     maxRetryAttempts: 3
                 ),
@@ -508,6 +517,7 @@ public enum MockDataProvider {
                     replyToID: nil,
                     roundTripTime: nil,
                     heardRepeats: 0,
+                    repeaterInfoJSON: nil,
                     retryAttempt: 0,
                     maxRetryAttempts: 3
                 ),
@@ -533,6 +543,7 @@ public enum MockDataProvider {
                     replyToID: nil,
                     roundTripTime: nil,
                     heardRepeats: 0,
+                    repeaterInfoJSON: nil,
                     retryAttempt: 0,
                     maxRetryAttempts: 3
                 ),
@@ -558,6 +569,7 @@ public enum MockDataProvider {
                     replyToID: nil,
                     roundTripTime: nil,
                     heardRepeats: 0,
+                    repeaterInfoJSON: nil,
                     retryAttempt: 0,
                     maxRetryAttempts: 0
                 )
@@ -587,6 +599,7 @@ public enum MockDataProvider {
                     replyToID: nil,
                     roundTripTime: nil,
                     heardRepeats: 0,
+                    repeaterInfoJSON: nil,
                     retryAttempt: 0,
                     maxRetryAttempts: 0
                 ),
@@ -612,6 +625,7 @@ public enum MockDataProvider {
                     replyToID: nil,
                     roundTripTime: 3200,  // Slower due to 2 hops
                     heardRepeats: 1,
+                    repeaterInfoJSON: nil,
                     retryAttempt: 0,
                     maxRetryAttempts: 3
                 ),
@@ -637,6 +651,7 @@ public enum MockDataProvider {
                     replyToID: nil,
                     roundTripTime: nil,
                     heardRepeats: 0,
+                    repeaterInfoJSON: nil,
                     retryAttempt: 0,
                     maxRetryAttempts: 0
                 )

@@ -183,7 +183,7 @@ public actor MockPersistenceStore: PersistenceStoreProtocol {
         }
     }
 
-    public func updateMessageHeardRepeats(id: UUID, heardRepeats: Int) async throws {
+    public func updateMessageHeardRepeats(id: UUID, heardRepeats: Int, repeaterInfoJSON: String?) async throws {
         if let message = messages[id] {
             messages[id] = MessageDTO(
                 id: message.id,
@@ -205,6 +205,7 @@ public actor MockPersistenceStore: PersistenceStoreProtocol {
                 replyToID: message.replyToID,
                 roundTripTime: message.roundTripTime,
                 heardRepeats: heardRepeats,
+                repeaterInfoJSON: repeaterInfoJSON,
                 retryAttempt: message.retryAttempt,
                 maxRetryAttempts: message.maxRetryAttempts
             )
