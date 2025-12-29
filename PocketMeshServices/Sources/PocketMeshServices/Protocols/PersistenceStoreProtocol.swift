@@ -49,8 +49,8 @@ public protocol PersistenceStoreProtocol: Actor {
     /// Update message retry status
     func updateMessageRetryStatus(id: UUID, status: MessageStatus, retryAttempt: Int, maxRetryAttempts: Int) async throws
 
-    /// Update heard repeats count
-    func updateMessageHeardRepeats(id: UUID, heardRepeats: Int) async throws
+    /// Update heard repeats count and repeater info
+    func updateMessageHeardRepeats(id: UUID, heardRepeats: Int, repeaterInfoJSON: String?) async throws
 
     /// Check if a message with the given deduplication key exists
     func isDuplicateMessage(deduplicationKey: String) async throws -> Bool

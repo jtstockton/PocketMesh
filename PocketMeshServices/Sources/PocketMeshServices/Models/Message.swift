@@ -79,6 +79,9 @@ public final class Message {
 
     /// Count of mesh repeats heard for this message (outgoing only)
     public var heardRepeats: Int
+    
+    /// Repeater information as JSON string: [{"prefix": "56", "snr": 12.5, "heardAt": timestamp}, ...]
+    public var repeaterInfoJSON: String?
 
     /// Current retry attempt (0 = first attempt, 1 = first retry, etc.)
     public var retryAttempt: Int
@@ -109,6 +112,7 @@ public final class Message {
         replyToID: UUID? = nil,
         roundTripTime: UInt32? = nil,
         heardRepeats: Int = 0,
+        repeaterInfoJSON: String? = nil,
         retryAttempt: Int = 0,
         maxRetryAttempts: Int = 0,
         deduplicationKey: String? = nil
@@ -132,6 +136,7 @@ public final class Message {
         self.replyToID = replyToID
         self.roundTripTime = roundTripTime
         self.heardRepeats = heardRepeats
+        self.repeaterInfoJSON = repeaterInfoJSON
         self.retryAttempt = retryAttempt
         self.maxRetryAttempts = maxRetryAttempts
         self.deduplicationKey = deduplicationKey
@@ -226,6 +231,7 @@ public struct MessageDTO: Sendable, Equatable, Identifiable {
     public let replyToID: UUID?
     public let roundTripTime: UInt32?
     public let heardRepeats: Int
+    public let repeaterInfoJSON: String?
     public let retryAttempt: Int
     public let maxRetryAttempts: Int
     public let deduplicationKey: String?
@@ -250,6 +256,7 @@ public struct MessageDTO: Sendable, Equatable, Identifiable {
         self.replyToID = message.replyToID
         self.roundTripTime = message.roundTripTime
         self.heardRepeats = message.heardRepeats
+        self.repeaterInfoJSON = message.repeaterInfoJSON
         self.retryAttempt = message.retryAttempt
         self.maxRetryAttempts = message.maxRetryAttempts
         self.deduplicationKey = message.deduplicationKey
@@ -276,6 +283,7 @@ public struct MessageDTO: Sendable, Equatable, Identifiable {
         replyToID: UUID?,
         roundTripTime: UInt32?,
         heardRepeats: Int,
+        repeaterInfoJSON: String?,
         retryAttempt: Int,
         maxRetryAttempts: Int,
         deduplicationKey: String? = nil
@@ -299,6 +307,7 @@ public struct MessageDTO: Sendable, Equatable, Identifiable {
         self.replyToID = replyToID
         self.roundTripTime = roundTripTime
         self.heardRepeats = heardRepeats
+        self.repeaterInfoJSON = repeaterInfoJSON
         self.retryAttempt = retryAttempt
         self.maxRetryAttempts = maxRetryAttempts
         self.deduplicationKey = deduplicationKey

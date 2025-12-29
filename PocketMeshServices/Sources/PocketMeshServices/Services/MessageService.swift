@@ -1,6 +1,16 @@
 import Foundation
 import MeshCore
 import os
+import CryptoKit
+
+// MARK: - Repeater Info Entry
+
+/// Information about a repeater that relayed a message
+public struct RepeaterInfoEntry: Sendable, Codable {
+    public let prefix: String
+    public let snr: Double?
+    public let heardAt: Date
+}
 
 // MARK: - Message Service Errors
 
@@ -74,17 +84,34 @@ public struct PendingAck: Sendable {
     public let sentAt: Date
     public let timeout: TimeInterval
     public var heardRepeats: Int = 0
+    public var repeaterInfo: [RepeaterInfoEntry] = []
     public var isDelivered: Bool = false
+    
+    /// Timestamp of the message (for matching rxLogData)
+    public let timestamp: UInt32?
+    
+    /// Hash of the message text (for matching rxLogData)
+    public let messageTextHash: Data?
 
     /// When true, `checkExpiredAcks` will skip this ACK (retry loop manages expiry)
     public var isRetryManaged: Bool = false
 
-    public init(messageID: UUID, ackCode: Data, sentAt: Date, timeout: TimeInterval, isRetryManaged: Bool = false) {
+    public init(
+        messageID: UUID, 
+        ackCode: Data, 
+        sentAt: Date, 
+        timeout: TimeInterval, 
+        isRetryManaged: Bool = false,
+        timestamp: UInt32? = nil,
+        messageTextHash: Data? = nil
+    ) {
         self.messageID = messageID
         self.ackCode = ackCode
         self.sentAt = sentAt
         self.timeout = timeout
         self.isRetryManaged = isRetryManaged
+        self.timestamp = timestamp
+        self.messageTextHash = messageTextHash
     }
 
     public var isExpired: Bool {
@@ -160,6 +187,9 @@ public actor MessageService {
 
     /// Handler for routing change events (contactID, isFlood)
     private var routingChangedHandler: (@Sendable (UUID, Bool) async -> Void)?
+    
+    /// Handler for heard repeats updates (messageID, heardRepeats)
+    private var heardRepeatsHandler: (@Sendable (UUID, Int) async -> Void)?
 
     /// Task for periodic ACK expiry checking
     private var ackCheckTask: Task<Void, Never>?
@@ -218,17 +248,25 @@ public actor MessageService {
 
         eventListenerTask = Task { [weak self] in
             guard let self else { return }
+            
+            logger.info("MessageService: Started event listening")
 
             for await event in await session.events() {
                 guard !Task.isCancelled else { break }
 
                 switch event {
                 case .acknowledgement(let code):
+                    logger.debug("MessageService: Received acknowledgement event")
                     await handleAcknowledgement(code: code)
+                case .rxLogData(let logData):
+                    logger.debug("MessageService: Received rxLogData event with \(logData.payload.count) bytes")
+                    await handleRxLogData(logData)
                 default:
                     break
                 }
             }
+            
+            logger.info("MessageService: Event listening stopped")
         }
     }
 
@@ -768,6 +806,27 @@ public actor MessageService {
                 textType: textType
             )
             try await dataStore.saveMessage(messageDTO)
+            
+            // Track this channel message for repeat counting
+            // Use messageID as tracking key since we don't have an ACK code for channel messages
+            let trackingKey = messageID.uuidString.data(using: .utf8) ?? Data()
+            
+            // Create a hash of the message text for matching
+            let textData = text.data(using: .utf8) ?? Data()
+            let textHash = SHA256.hash(data: textData)
+            let textHashData = Data(textHash)
+            
+            let pending = PendingAck(
+                messageID: messageID,
+                ackCode: trackingKey,
+                sentAt: Date(),
+                timeout: repeatTrackingGracePeriod,
+                timestamp: timestamp,
+                messageTextHash: textHashData
+            )
+            pendingAcks[trackingKey] = pending
+            
+            logger.debug("Tracking channel message \(messageID) for repeat counting (timestamp: \(timestamp), textHash: \(textHashData.prefix(4).hexString))")
 
             // Update channel's last message date
             if let channel = try await dataStore.fetchChannel(deviceID: deviceID, index: channelIndex) {
@@ -827,6 +886,159 @@ public actor MessageService {
             logger.debug("Heard repeat #\(repeatCount)")
         }
     }
+    
+    /// Processes rxLogData events to detect repeated packets from mesh repeaters
+    private func handleRxLogData(_ logData: LogDataInfo) async {
+        let payload = logData.payload
+        
+        logger.debug("handleRxLogData called with \(payload.count) bytes, pending ACKs: \(self.pendingAcks.count)")
+        logger.debug("Raw payload bytes: \(payload.hexString)")
+        
+        // Minimum packet size check (header + path + minimal payload)
+        guard payload.count >= 8 else {
+            logger.debug("rxLogData payload too small: \(payload.count) bytes")
+            return
+        }
+        
+        // Parse packet structure according to MeshCore docs:
+        // Byte 0: Route type (upper 4 bits) | Payload type (lower 4 bits)
+        // Byte 1: Path length
+        // Bytes 2+: Path Data (repeater prefixes, 6 bytes each)
+        // Remaining: Actual message payload
+        
+        let routeAndType = payload[0]
+        let pathLength = payload[1]
+        
+        logger.debug("Byte 0 (route/type): 0x\(String(format: "%02x", routeAndType)), Path length: \(pathLength)")
+        
+        // Calculate where the actual message payload starts
+        // Header (2 bytes) + Path Data (pathLength bytes, 1 byte per hop) = start of message
+        let messagePayloadStart = 2 + Int(pathLength)
+        
+        guard payload.count > messagePayloadStart else {
+            logger.debug("rxLogData payload too small for message data, need at least \(messagePayloadStart) bytes")
+            return
+        }
+        
+        // Extract the message payload
+        let messagePayload = payload.subdata(in: messagePayloadStart..<payload.count)
+        
+        logger.debug("Message payload starts at byte \(messagePayloadStart), length: \(messagePayload.count)")
+        logger.debug("Message payload: \(messagePayload.hexString)")
+        
+        // Message payload structure for CHANNEL messages:
+        // Bytes 0-5: Sender public key prefix (6 bytes)
+        // Bytes 6+: Message text (UTF-8) - NO TIMESTAMP for channel messages!
+        
+        guard messagePayload.count >= 6 else {
+            logger.debug("Message payload too small")
+            return
+        }
+        
+        let senderPrefix = messagePayload.prefix(6)
+        
+        // Extract message text (after sender prefix, no timestamp for channels)
+        let textData = messagePayload.subdata(in: 6..<messagePayload.count)
+        let textHash = SHA256.hash(data: textData)
+        let receivedTextHash = Data(textHash)
+        
+        // Extract repeater prefix from path data for logging (1 byte per hop)
+        let repeaterPrefix = pathLength > 0 && payload.count >= 2 + Int(pathLength)
+            ? payload.subdata(in: 2..<(2 + Int(pathLength)))
+            : Data()
+        
+        logger.debug("Sender prefix: \(senderPrefix.hexString)")
+        logger.debug("Received textHash: \(receivedTextHash.prefix(4).hexString), repeater: \(repeaterPrefix.hexString)")
+        
+        // Find the most recent pending message that's not expired
+        // Since channel messages have encrypted/encoded payloads, we can't reliably match by hash
+        // Instead, match to the most recent message sent (within a reasonable time window)
+        var mostRecentTracking: (ackCode: Data, tracking: PendingAck)? = nil
+        var mostRecentTime = Date.distantPast
+        
+        for (ackCode, tracking) in self.pendingAcks {
+            // Check if this is still being tracked and not expired
+            let elapsed = Date().timeIntervalSince(tracking.sentAt)
+            guard elapsed <= repeatTrackingGracePeriod else {
+                continue
+            }
+            
+            // Only match if sent very recently (within last 5 seconds)
+            // This prevents attributing repeats to old messages
+            guard elapsed < 5.0 else {
+                continue
+            }
+            
+            // Find the most recent one
+            if tracking.sentAt > mostRecentTime {
+                mostRecentTime = tracking.sentAt
+                mostRecentTracking = (ackCode, tracking)
+            }
+        }
+        
+        guard let (ackCode, tracking) = mostRecentTracking else {
+            logger.debug("No recent pending message found for this repeat")
+            return
+        }
+        
+        logger.debug("Matched repeat to most recent message \(tracking.messageID) (sent \(Date().timeIntervalSince(tracking.sentAt))s ago)")
+        
+        logger.debug("Incrementing repeat count for message \(tracking.messageID)")
+        
+        // Parse individual repeaters from path data (1 byte = 1 repeater)
+        // repeaterPrefix contains ALL path bytes, we need to split them
+        var repeaterEntries: [RepeaterInfoEntry] = []
+        for byte in repeaterPrefix {
+            let hexPrefix = String(format: "%02X", byte)
+            let entry = RepeaterInfoEntry(
+                prefix: hexPrefix,
+                snr: logData.snr,
+                heardAt: Date()
+            )
+            repeaterEntries.append(entry)
+        }
+        
+        // Add all repeater entries
+        for entry in repeaterEntries {
+            self.pendingAcks[ackCode]?.repeaterInfo.append(entry)
+            self.pendingAcks[ackCode]?.heardRepeats += 1
+        }
+        
+        let repeatCount = self.pendingAcks[ackCode]?.heardRepeats ?? 0
+        let repeaterInfoArray = self.pendingAcks[ackCode]?.repeaterInfo ?? []
+        
+        // Build JSON from repeater info
+        let jsonString = buildRepeaterInfoJSON(repeaterInfoArray)
+        
+        // Update the database
+        try? await dataStore.updateMessageHeardRepeats(
+            id: tracking.messageID,
+            heardRepeats: repeatCount,
+            repeaterInfoJSON: jsonString
+        )
+        
+        // Notify UI of the update
+        await heardRepeatsHandler?(tracking.messageID, repeatCount)
+        
+        // Log all repeaters
+        let repeaterList = repeaterEntries.map { $0.prefix }.joined(separator: ", ")
+        logger.info("Heard repeat #\(repeatCount) from \(repeaterEntries.count) repeater(s): \(repeaterList) (SNR: \(logData.snr ?? 0) dB)")
+    }
+    
+    /// Builds JSON string from repeater info array
+    private func buildRepeaterInfoJSON(_ repeaterInfo: [RepeaterInfoEntry]) -> String? {
+        guard !repeaterInfo.isEmpty else { return nil }
+        
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        
+        guard let jsonData = try? encoder.encode(repeaterInfo),
+              let jsonString = String(data: jsonData, encoding: .utf8) else {
+            return nil
+        }
+        
+        return jsonString
+    }
 
     /// Sets a callback to be invoked when an ACK is received.
     ///
@@ -856,6 +1068,13 @@ public actor MessageService {
     /// - Parameter handler: Callback receiving (contactID, isFloodRouting)
     public func setRoutingChangedHandler(_ handler: @escaping @Sendable (UUID, Bool) async -> Void) {
         routingChangedHandler = handler
+    }
+    
+    /// Sets a callback to be invoked when heard repeats count is updated.
+    ///
+    /// - Parameter handler: Callback receiving (messageID, heardRepeats)
+    public func setHeardRepeatsHandler(_ handler: @escaping @Sendable (UUID, Int) async -> Void) {
+        heardRepeatsHandler = handler
     }
 
     // MARK: - Periodic ACK Checking

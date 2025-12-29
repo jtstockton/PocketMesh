@@ -13,6 +13,9 @@ final class ChatViewModel {
 
     /// Current conversations (contacts with messages)
     var conversations: [ContactDTO] = []
+    
+    /// All contacts for the device (including repeaters, for name resolution)
+    var allContacts: [ContactDTO] = []
 
     /// Current channels with messages
     var channels: [ChannelDTO] = []
@@ -124,6 +127,8 @@ final class ChatViewModel {
 
         do {
             conversations = try await dataStore.fetchConversations(deviceID: deviceID)
+            // Also load all contacts for name resolution (repeaters, etc.)
+            allContacts = try await dataStore.fetchContacts(deviceID: deviceID)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -255,6 +260,9 @@ final class ChatViewModel {
 
         do {
             messages = try await dataStore.fetchMessages(deviceID: channel.deviceID, channelIndex: channel.index)
+            
+            // Load all contacts for name resolution (repeaters, etc.)
+            allContacts = try await dataStore.fetchContacts(deviceID: channel.deviceID)
 
             // Clear unread count
             try await dataStore.clearChannelUnreadCount(channelID: channel.id)
