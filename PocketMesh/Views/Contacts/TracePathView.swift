@@ -276,13 +276,15 @@ private struct TraceResultHopRow: View {
                         .foregroundStyle(.secondary)
                 }
 
-                // SNR display (not for end node)
-                if !hop.isEndNode {
-                    Text("SNR: \(hop.snr, format: .number.precision(.fractionLength(2))) dB")
+                // SNR display (only for intermediate hops and end node)
+                if hop.isStartNode {
+                    // No SNR for start node - we're the sender
+                } else if hop.isEndNode {
+                    Text("Return SNR: \(hop.snr, format: .number.precision(.fractionLength(2))) dB")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("Duration shown below")
+                    Text("SNR: \(hop.snr, format: .number.precision(.fractionLength(2))) dB")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -290,8 +292,8 @@ private struct TraceResultHopRow: View {
 
             Spacer()
 
-            // Signal strength indicator (not for end node)
-            if !hop.isEndNode {
+            // Signal strength indicator (only for intermediate hops and end node)
+            if !hop.isStartNode {
                 Image(systemName: "cellularbars", variableValue: hop.signalLevel)
                     .foregroundStyle(hop.signalColor)
                     .font(.title2)

@@ -244,24 +244,22 @@ final class TracePathViewModel {
 
         // Build hops from response
         var hops: [TraceHop] = []
+        let deviceName = appState?.connectedDevice?.nodeName ?? "My Device"
 
-        // Start node (local device)
-        if let firstNode = traceInfo.path.first {
-            hops.append(TraceHop(
-                hashByte: nil,
-                resolvedName: appState?.connectedDevice?.nodeName ?? "My Device",
-                snr: firstNode.snr,
-                isStartNode: true,
-                isEndNode: false
-            ))
-        }
+        // Start node (local device - no incoming SNR, we're the sender)
+        hops.append(TraceHop(
+            hashByte: nil,
+            resolvedName: deviceName,
+            snr: 0,
+            isStartNode: true,
+            isEndNode: false
+        ))
 
-        // Intermediate hops
-        for node in traceInfo.path.dropFirst().dropLast() {
-            let hashByte = node.hash
-            let resolvedName = hashByte.flatMap { resolveHashToName($0) }
+        // Intermediate hops (all nodes with a hash are repeaters)
+        for node in traceInfo.path where node.hash != nil {
+            let resolvedName = node.hash.flatMap { resolveHashToName($0) }
             hops.append(TraceHop(
-                hashByte: hashByte,
+                hashByte: node.hash,
                 resolvedName: resolvedName,
                 snr: node.snr,
                 isStartNode: false,
@@ -269,12 +267,12 @@ final class TracePathViewModel {
             ))
         }
 
-        // End node (response received back)
-        if traceInfo.path.count > 1, let lastNode = traceInfo.path.last {
+        // End node (return to local device - the node with hash == nil)
+        if let returnNode = traceInfo.path.last, returnNode.hash == nil {
             hops.append(TraceHop(
                 hashByte: nil,
-                resolvedName: appState?.connectedDevice?.nodeName ?? "My Device",
-                snr: lastNode.snr,
+                resolvedName: deviceName,
+                snr: returnNode.snr,
                 isStartNode: false,
                 isEndNode: true
             ))
