@@ -86,24 +86,28 @@ public struct PendingAck: Sendable {
     public var heardRepeats: Int = 0
     public var repeaterInfo: [RepeaterInfoEntry] = []
     public var isDelivered: Bool = false
-    
+
     /// Timestamp of the message (for matching rxLogData)
     public let timestamp: UInt32?
-    
+
     /// Hash of the message text (for matching rxLogData)
     public let messageTextHash: Data?
 
     /// When true, `checkExpiredAcks` will skip this ACK (retry loop manages expiry)
     public var isRetryManaged: Bool = false
 
+    /// When true, this is a channel message tracking entry (for repeat counting only, not for failure detection)
+    public var isChannelMessage: Bool = false
+
     public init(
-        messageID: UUID, 
-        ackCode: Data, 
-        sentAt: Date, 
-        timeout: TimeInterval, 
+        messageID: UUID,
+        ackCode: Data,
+        sentAt: Date,
+        timeout: TimeInterval,
         isRetryManaged: Bool = false,
         timestamp: UInt32? = nil,
-        messageTextHash: Data? = nil
+        messageTextHash: Data? = nil,
+        isChannelMessage: Bool = false
     ) {
         self.messageID = messageID
         self.ackCode = ackCode
@@ -112,6 +116,7 @@ public struct PendingAck: Sendable {
         self.isRetryManaged = isRetryManaged
         self.timestamp = timestamp
         self.messageTextHash = messageTextHash
+        self.isChannelMessage = isChannelMessage
     }
 
     public var isExpired: Bool {
@@ -822,7 +827,8 @@ public actor MessageService {
                 sentAt: Date(),
                 timeout: repeatTrackingGracePeriod,
                 timestamp: timestamp,
-                messageTextHash: textHashData
+                messageTextHash: textHashData,
+                isChannelMessage: true
             )
             pendingAcks[trackingKey] = pending
             
@@ -997,11 +1003,15 @@ public actor MessageService {
             )
             repeaterEntries.append(entry)
         }
-        
-        // Add all repeater entries
+
+        // Add repeater entries, deduplicating by prefix
+        let existingPrefixes = Set(self.pendingAcks[ackCode]?.repeaterInfo.map { $0.prefix } ?? [])
         for entry in repeaterEntries {
-            self.pendingAcks[ackCode]?.repeaterInfo.append(entry)
-            self.pendingAcks[ackCode]?.heardRepeats += 1
+            // Only add if this repeater prefix hasn't been seen before
+            if !existingPrefixes.contains(entry.prefix) {
+                self.pendingAcks[ackCode]?.repeaterInfo.append(entry)
+                self.pendingAcks[ackCode]?.heardRepeats += 1
+            }
         }
         
         let repeatCount = self.pendingAcks[ackCode]?.heardRepeats ?? 0
@@ -1129,6 +1139,7 @@ public actor MessageService {
 
         let expiredCodes = pendingAcks.filter { _, tracking in
             !tracking.isRetryManaged &&
+            !tracking.isChannelMessage &&
             !tracking.isDelivered &&
             now.timeIntervalSince(tracking.sentAt) > tracking.timeout
         }.keys
