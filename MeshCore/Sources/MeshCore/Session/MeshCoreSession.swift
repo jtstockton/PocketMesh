@@ -337,11 +337,10 @@ public actor MeshCoreSession: MeshCoreSessionProtocol {
             await self.autoMessageFetchLoop()
         }
         
-        do {
-            _ = try await getMessage()
-        } catch {
-            logger.debug("Initial message fetch: \(error.localizedDescription)")
-        }
+        // NOTE: We deliberately do NOT poll for messages here!
+        // The initial message poll happens during the sync phase via pollAllMessages().
+        // If we poll here, we consume messages before the handlers are fully wired up,
+        // causing messages to be lost.
     }
 
     /// Stops automatic message fetching.
